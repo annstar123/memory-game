@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>科學開源服務社</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #f2f2f2;
+    }
+    h1 { margin: 20px 0; }
+    #timer {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+    #countdown {
+      font-size: 18px;
+      color: red;
+      margin-bottom: 10px;
+    }
+    #game-board {
+      display: grid;
+      grid-template-columns: repeat(4, 140px);
+      grid-gap: 10px;
+      justify-content: center;
+      margin: 0 auto;
+    }
+    .card {
+      width: 140px;
+      height: 140px;
+      position: relative;
+      perspective: 1000px;
+      cursor: pointer;
+    }
+    .card-inner {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.5s;
+      transform-style: preserve-3d;
+    }
+    .card.flipped .card-inner {
+      transform: rotateY(180deg);
+    }
+    .card-front, .card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 10px;
+    }
+    .card-front {
+      background: #fff;
+      transform: rotateY(180deg);
+    }
+    .card-back {
+      background: #333;
+    }
+    .card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 10px;
+    }
+
+    /* 完成彈窗 */
+    #popup {
+      display: none; /* 預設隱藏 */
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    #popup-content {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      animation: fadeIn 0.4s ease;
+    }
+    #popup h2 {
+      margin-bottom: 15px;
+    }
+    #popup button {
+      margin-top: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background: #2196F3;
+      color: white;
+    }
+    #popup button:hover {
+      background: #1976D2;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.8); }
+      to { opacity: 1; transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+  <h1>科學開源服務社－對對碰遊戲</h1>
+  <div id="timer">時間：0 秒</div>
+  <div id="countdown"></div>
+  <div id="game-board"></div>
+
+  <!-- 完成彈窗 -->
+  <div id="popup">
+    <div id="popup-content">
+      <h2>恭喜完成！</h2>
+      <p id="final-time"></p>
+      <button onclick="startGame(); closePopup();">再玩一次</button>
+    </div>
+  </div>
+
+  <script>
+    const images = [
+      "img/img1.jpg", "img/img2.jpg", "img/img3.jpg", "img/img4.jpg",
+      "img/img5.jpg", "img/img6.jpg", "img/img7.jpg", "img/img8.jpg"
+    ]; // 你放的 8 張圖
+
+    let firstCard, secondCard;
+    let lockBoard = false;
+    let matchedCount = 0;
+    let startTime, timerInterval, countdownInterval;
+
+    const board = document.getElementById("game-board");
+    const timerDisplay = document.getElementById("timer");
+    const countdownDisplay = document.getElementById("countdown");
+    const popup = document.getElementById("popup");
+    const finalTimeDisplay = document.getElementById("final-time");
+
+    function openPopup(finalTime) {
+      finalTimeDisplay.textContent = "總時間：" + finalTime + " 秒";
+      popup.style.display = "flex";
+    }
+
+    function closePopup() {
+      popup.style.display = "none";
+    }
+
+    // 初始化遊戲
+    function startGame() {
+      matchedCount = 0;
+      clearInterval(timerInterval);
+      clearInterval(countdownInterval);
+      timerDisplay.textContent = "時間：0 秒";
+      countdownDisplay.textContent = "";
+      board.innerHTML = "";
+      [firstCard, secondCard] = [null, null];
+      lockBoard = false;
+      closePopup();
+
+      let cards = [...images, ...images];
+      cards.sort(() => 0.5 - Math.random());
+
+      cards.forEach(img => {
+        const card = document.createElement("div");
+        card.classList.add("card");
+        card.innerHTML = `
+          <div class="card-inner">
+            <div class="card-front"><img src="${img}" alt=""></div>
+            <div class="card-back"></div>
+          </div>
+        `;
+        board.appendChild(card);
+        card.addEventListener("click", () => flipCard(card));
+      });
+
+      // 開局顯示 10 秒 + 倒數
+      document.querySelectorAll(".card").forEach(card => {
+        card.classList.add("flipped");
+      });
+
+      let count = 10;
+      countdownDisplay.textContent = "記憶倒數：" + count + " 秒";
+      countdownInterval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownDisplay.textContent = "記憶倒數：" + count + " 秒";
+        } else {
+          clearInterval(countdownInterval);
+          countdownDisplay.textContent = "";
+          document.querySelectorAll(".card").forEach(card => {
+            card.classList.remove("flipped");
+          });
+          startTimer();
+        }
+      }, 1000);
+    }
+
+    function flipCard(card) {
+      if (lockBoard) return;
+      if (card === firstCard) return;
+      if (countdownDisplay.textContent !== "") return;
+
+      card.classList.add("flipped");
+
+      if (!firstCard) {
+        firstCard = card;
+        return;
+      }
+
+      secondCard = card;
+      checkMatch();
+    }
+
+function checkMatch() {
+  let img1 = firstCard.querySelector("img").src;
+  let img2 = secondCard.querySelector("img").src;
+
+  if (img1 === img2) {
+    matchedCount += 2;
+    resetBoard();
+    if (matchedCount === 16) {
+      // 在最後一組配對成功時，立即停止計時
+      clearInterval(timerInterval);
+      let finalTime = Math.floor((Date.now() - startTime) / 1000);
+
+      // 延遲顯示彈窗，但時間保持剛剛記錄的 finalTime
+      setTimeout(() => {
+        openPopup(finalTime);
+      }, 600); // 等最後動畫跑完
+    }
+  } else {
+    lockBoard = true;
+    setTimeout(() => {
+      firstCard.classList.remove("flipped");
+      secondCard.classList.remove("flipped");
+      resetBoard();
+    }, 1000);
+  }
+}
+
+
+    function resetBoard() {
+      [firstCard, secondCard] = [null, null];
+      lockBoard = false;
+    }
+
+    function startTimer() {
+      startTime = Date.now();
+      timerInterval = setInterval(() => {
+        let elapsed = Math.floor((Date.now() - startTime) / 1000);
+        timerDisplay.textContent = "時間：" + elapsed + " 秒";
+      }, 1000);
+    }
+
+    // 開始遊戲
+    startGame();
+  </script>
+</body>
+</html>
